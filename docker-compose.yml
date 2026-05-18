@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq-test
+    ports:
+      - "5672:5672"      # AMQP порт для подключения приложений
+      - "15672:15672"    # Management UI порт
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - rabbitmq-network
+
+  # Опционально: RabbitMQ Management UI можно также просмотреть через браузер
+  # http://localhost:15672 (guest/guest)
+
+volumes:
+  rabbitmq-data:
+    driver: local
+
+networks:
+  rabbitmq-network:
+    driver: bridge
