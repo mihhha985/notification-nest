@@ -1,16 +1,14 @@
-version: '3.8'
-
 services:
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
-    container_name: rabbitmq-test
+    container_name: notification-rabbitmq
     ports:
-      - "5672:5672"      # AMQP порт для подключения приложений
-      - "15672:15672"    # Management UI порт
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-      RABBITMQ_DEFAULT_VHOST: /
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -20,15 +18,58 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - rabbitmq-network
+      - notification-network
 
-  # Опционально: RabbitMQ Management UI можно также просмотреть через браузер
-  # http://localhost:15672 (guest/guest)
+  producer-service:
+    build:
+      context: ./producer-service
+      dockerfile: Dockerfile
+    container_name: notification-producer
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: ${PRODUCER_PORT:-3000}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+    ports:
+      - "${PRODUCER_PORT:-3000}:${PRODUCER_PORT:-3000}"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - notification-network
+
+  consumer-telegram-service:
+    build:
+      context: ./consumer-telegram-service
+      dockerfile: Dockerfile
+    container_name: notification-consumer-telegram
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - notification-network
 
 volumes:
   rabbitmq-data:
     driver: local
 
 networks:
-  rabbitmq-network:
+  notification-network:
     driver: bridge
