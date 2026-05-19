@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -30,6 +31,12 @@ import {
 @Controller('messages')
 export class MessagesController {
   constructor(private readonly rabbitMqService: RabbitMqService) {}
+
+	@Get()
+	@HttpCode(HttpStatus.OK)
+	async sendHelloWorld(): Promise<string> {
+		return 'Hello World!';
+	}
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
